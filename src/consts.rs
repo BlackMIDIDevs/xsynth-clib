@@ -1,0 +1,8 @@
+pub const MIDI_EVENT_NOTEON: u32 = 0;
+pub const MIDI_EVENT_NOTEOFF: u32 = 1;
+pub const MIDI_EVENT_ALLNOTESOFF: u32 = 2;
+pub const MIDI_EVENT_ALLNOTESKILLED: u32 = 3;
+pub const MIDI_EVENT_RESETCONTROL: u32 = 4;
+pub const MIDI_EVENT_CONTROL: u32 = 5;
+pub const MIDI_EVENT_PROGRAMCHANGE: u32 = 6;
+pub const MIDI_EVENT_PITCH: u32 = 7;
