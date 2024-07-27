@@ -1,18 +1,22 @@
 #![allow(clippy::missing_safety_doc)]
+#![allow(static_mut_refs)]
 
 use std::ffi::*;
 use std::sync::Arc;
 
 use xsynth_core::{
-    channel::{ChannelAudioEvent, ChannelConfigEvent, ChannelInitOptions, ControlEvent},
+    channel::{ChannelConfigEvent, ChannelInitOptions},
     channel_group::{ChannelGroup, ChannelGroupConfig},
     soundfont::SoundfontBase,
-    AudioPipe, AudioStreamParams,
+    AudioPipe,
 };
 
 mod consts;
+mod realtime;
 mod soundfont;
+mod utils;
 pub use consts::*;
+pub use utils::*;
 use xsynth_realtime::SynthEvent;
 
 struct XSynthGroup {
@@ -70,10 +74,6 @@ pub extern "C" fn XSynth_GenDefault_StreamParams() -> XSynth_StreamParams {
         sample_rate: 44100,
         audio_channels: 2,
     }
-}
-
-pub fn convert_streamparams_to_rust(params: XSynth_StreamParams) -> AudioStreamParams {
-    AudioStreamParams::new(params.sample_rate, params.audio_channels.into())
 }
 
 /// Options for initializing a ChannelGroup
@@ -211,34 +211,14 @@ pub extern "C" fn XSynth_ChannelGroup_SendEvent(
     params: c_uint,
 ) {
     unsafe {
-        let group = &mut GROUPS
+        let ev = convert_event(channel, event, params);
+
+        GROUPS
             .iter_mut()
             .find(|g| g.id == id)
-            .unwrap_or_else(|| panic!("Group does not exist."));
-
-        let ev = match event {
-            MIDI_EVENT_NOTEON => {
-                let key = (params & 255) as u8;
-                let vel = (params >> 8) as u8;
-                ChannelAudioEvent::NoteOn { key, vel }
-            }
-            MIDI_EVENT_NOTEOFF => ChannelAudioEvent::NoteOff {
-                key: (params & 255) as u8,
-            },
-            MIDI_EVENT_ALLNOTESKILLED => ChannelAudioEvent::AllNotesKilled,
-            MIDI_EVENT_ALLNOTESOFF => ChannelAudioEvent::AllNotesOff,
-            MIDI_EVENT_RESETCONTROL => ChannelAudioEvent::ResetControl,
-            MIDI_EVENT_PROGRAMCHANGE => ChannelAudioEvent::ProgramChange((params & 255) as u8),
-            MIDI_EVENT_CONTROL => {
-                let val1 = (params & 255) as u8;
-                let val2 = (params >> 8) as u8;
-                ChannelAudioEvent::Control(ControlEvent::Raw(val1, val2))
-            }
-            MIDI_EVENT_PITCH => ChannelAudioEvent::Control(ControlEvent::PitchBend(params as f32)),
-            _ => return,
-        };
-
-        group.group.send_event(SynthEvent::Channel(channel, ev));
+            .unwrap_or_else(|| panic!("Group does not exist."))
+            .group
+            .send_event(ev);
     }
 }
 
@@ -300,10 +280,7 @@ pub extern "C" fn XSynth_ChannelGroup_GetStreamParams(id: c_ulong) -> XSynth_Str
             .group
             .stream_params();
 
-        XSynth_StreamParams {
-            sample_rate: sp.sample_rate,
-            audio_channels: sp.channels.count(),
-        }
+        convert_streamparams_to_c(sp)
     }
 }
 
@@ -319,10 +296,7 @@ pub extern "C" fn XSynth_ChannelGroup_GetStreamParams(id: c_ulong) -> XSynth_Str
 /// This function will panic if the given channel group ID does not exist.
 #[no_mangle]
 pub extern "C" fn XSynth_ChannelGroup_SetLayerCount(id: c_ulong, layers: c_ulong) {
-    let layercount = match layers {
-        0 => None,
-        _ => Some(layers as usize),
-    };
+    let layercount = convert_layer_count(layers);
 
     unsafe {
         GROUPS
@@ -360,18 +334,7 @@ pub unsafe extern "C" fn XSynth_ChannelGroup_SetSoundfonts(
             .unwrap_or_else(|| panic!("Group does not exist."));
 
         let ids = std::slice::from_raw_parts(sf_ids, count as usize);
-
-        let sfvec: Vec<Arc<dyn SoundfontBase>> = ids
-            .iter()
-            .map(|id| {
-                let sf = &SOUNDFONTS
-                    .iter()
-                    .find(|sf| sf.id == *id)
-                    .unwrap_or_else(|| panic!("Soundfont does not exist."))
-                    .soundfont;
-                sf.clone()
-            })
-            .collect();
+        let sfvec = sfids_to_vec(ids);
 
         group.group.send_event(SynthEvent::ChannelConfig(
             ChannelConfigEvent::SetSoundfonts(sfvec),

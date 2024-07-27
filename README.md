@@ -13,10 +13,10 @@ All necessary documentation can be found on the generated `xsynth.h` header file
 Implemented:
 - Channel Group
 - Sample Soundfont
+- Realtime module
 
 Not yet implemented:
-- Realtime module
-- Rendered module
+- Buffered renderer
 
 ## License
 The XSynth Rust library as well as this C library are both licensed under the LGPL 3.0
