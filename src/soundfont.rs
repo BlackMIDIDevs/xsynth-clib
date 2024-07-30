@@ -1,4 +1,8 @@
-use std::{ffi::*, path::PathBuf, sync::Arc};
+use std::{
+    ffi::{c_char, CStr},
+    path::PathBuf,
+    sync::Arc,
+};
 
 use xsynth_core::soundfont::{Interpolator, SampleSoundfont, SoundfontInitOptions};
 
@@ -11,7 +15,7 @@ static mut ID_COUNTER: u64 = 0;
 
 fn next_id() -> u64 {
     unsafe {
-        let max = c_ulong::MAX;
+        let max = u64::MAX;
 
         if SOUNDFONTS.len() >= max as usize {
             panic!("Max number of soundfonts reached, cannot create more.")
@@ -54,11 +58,11 @@ fn convert_value_to_option(val: i16) -> Option<u8> {
 #[repr(C)]
 pub struct XSynth_SoundfontOptions {
     pub stream_params: XSynth_StreamParams,
-    pub bank: c_short,
-    pub preset: c_short,
+    pub bank: i16,
+    pub preset: i16,
     pub linear_release: bool,
     pub use_effects: bool,
-    pub interpolator: c_uchar,
+    pub interpolator: u8,
 }
 
 /// Generates the default values for the XSynth_SoundfontOptions struct
@@ -98,7 +102,7 @@ pub extern "C" fn XSynth_GenDefault_SoundfontOptions() -> XSynth_SoundfontOption
 pub extern "C" fn XSynth_Soundfont_LoadNew(
     path: *const c_char,
     options: XSynth_SoundfontOptions,
-) -> c_ulong {
+) -> u64 {
     unsafe {
         let path = PathBuf::from(CStr::from_ptr(path).to_str().expect("Unexpected error."));
 
@@ -140,7 +144,7 @@ pub extern "C" fn XSynth_Soundfont_LoadNew(
 /// --Parameters--
 /// - id: The ID of the desired soundfont to be removed
 #[no_mangle]
-pub extern "C" fn XSynth_Soundfont_Remove(id: c_ulong) {
+pub extern "C" fn XSynth_Soundfont_Remove(id: u64) {
     unsafe {
         SOUNDFONTS.retain(|group| group.id != id);
     }

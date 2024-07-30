@@ -18,7 +18,7 @@ pub fn convert_streamparams_to_c(params: &AudioStreamParams) -> XSynth_StreamPar
     }
 }
 
-pub fn convert_event(channel: u32, event: u32, params: u32) -> SynthEvent {
+pub fn convert_event(channel: u32, event: u16, params: u16) -> SynthEvent {
     let ev = match event {
         MIDI_EVENT_NOTEON => {
             let key = (params & 255) as u8;

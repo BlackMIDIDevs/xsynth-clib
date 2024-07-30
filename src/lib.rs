@@ -1,7 +1,6 @@
 #![allow(clippy::missing_safety_doc)]
 #![allow(static_mut_refs)]
 
-use std::ffi::*;
 use std::sync::Arc;
 
 use xsynth_core::{
@@ -35,7 +34,7 @@ static mut ID_COUNTER: u64 = 0;
 
 fn next_id() -> u64 {
     unsafe {
-        let max = c_ulong::MAX;
+        let max = u64::MAX;
 
         if GROUPS.len() >= max as usize {
             panic!("Max number of groups reached, cannot create more.")
@@ -60,8 +59,8 @@ fn next_id() -> u64 {
 /// - audio_channels: Number of audio channels (only mono (1) and stereo (2) are supported)
 #[repr(C)]
 pub struct XSynth_StreamParams {
-    pub sample_rate: c_uint,
-    pub audio_channels: c_ushort,
+    pub sample_rate: u32,
+    pub audio_channels: u16,
 }
 
 /// Generates the default values for the XSynth_StreamParams struct
@@ -86,9 +85,9 @@ pub extern "C" fn XSynth_GenDefault_StreamParams() -> XSynth_StreamParams {
 #[repr(C)]
 pub struct XSynth_GroupOptions {
     pub stream_params: XSynth_StreamParams,
-    pub channels: c_uint,
-    pub drum_channels: *const c_uint,
-    pub drum_channels_count: c_uint,
+    pub channels: u32,
+    pub drum_channels: *const u32,
+    pub drum_channels_count: u32,
     pub use_threadpool: bool,
     pub fade_out_killing: bool,
 }
@@ -130,7 +129,7 @@ pub extern "C" fn XSynth_GenDefault_GroupOptions() -> XSynth_GroupOptions {
 /// This function will panic if the maximum number of active groups is reached (which
 /// is about eighteen quintillion).
 #[no_mangle]
-pub extern "C" fn XSynth_ChannelGroup_Create(options: XSynth_GroupOptions) -> c_ulong {
+pub extern "C" fn XSynth_ChannelGroup_Create(options: XSynth_GroupOptions) -> u64 {
     unsafe {
         let channel_init_options = ChannelInitOptions {
             fade_out_killing: options.fade_out_killing,
@@ -167,7 +166,7 @@ pub extern "C" fn XSynth_ChannelGroup_Create(options: XSynth_GroupOptions) -> c_
 /// --Errors--
 /// This function will panic if the given channel group ID does not exist.
 #[no_mangle]
-pub extern "C" fn XSynth_ChannelGroup_VoiceCount(id: c_ulong) -> c_ulong {
+pub extern "C" fn XSynth_ChannelGroup_VoiceCount(id: u64) -> u64 {
     unsafe {
         GROUPS
             .iter()
@@ -204,12 +203,7 @@ pub extern "C" fn XSynth_ChannelGroup_VoiceCount(id: c_ulong) -> c_ulong {
 /// --Errors--
 /// This function will panic if the given channel group ID does not exist.
 #[no_mangle]
-pub extern "C" fn XSynth_ChannelGroup_SendEvent(
-    id: c_ulong,
-    channel: c_uint,
-    event: c_uint,
-    params: c_uint,
-) {
+pub extern "C" fn XSynth_ChannelGroup_SendEvent(id: u64, channel: u32, event: u16, params: u16) {
     unsafe {
         let ev = convert_event(channel, event, params);
 
@@ -237,11 +231,7 @@ pub extern "C" fn XSynth_ChannelGroup_SendEvent(
 /// --Errors--
 /// This function will panic if the given channel group ID does not exist.
 #[no_mangle]
-pub unsafe extern "C" fn XSynth_ChannelGroup_ReadSamples(
-    id: c_ulong,
-    buffer: *mut f32,
-    length: c_ulong,
-) {
+pub unsafe extern "C" fn XSynth_ChannelGroup_ReadSamples(id: u64, buffer: *mut f32, length: u64) {
     unsafe {
         if buffer.is_null() {
             return;
@@ -271,7 +261,7 @@ pub unsafe extern "C" fn XSynth_ChannelGroup_ReadSamples(
 /// --Errors--
 /// This function will panic if the given channel group ID does not exist.
 #[no_mangle]
-pub extern "C" fn XSynth_ChannelGroup_GetStreamParams(id: c_ulong) -> XSynth_StreamParams {
+pub extern "C" fn XSynth_ChannelGroup_GetStreamParams(id: u64) -> XSynth_StreamParams {
     unsafe {
         let sp = GROUPS
             .iter()
@@ -295,7 +285,7 @@ pub extern "C" fn XSynth_ChannelGroup_GetStreamParams(id: c_ulong) -> XSynth_Str
 /// --Errors--
 /// This function will panic if the given channel group ID does not exist.
 #[no_mangle]
-pub extern "C" fn XSynth_ChannelGroup_SetLayerCount(id: c_ulong, layers: c_ulong) {
+pub extern "C" fn XSynth_ChannelGroup_SetLayerCount(id: u64, layers: u64) {
     let layercount = convert_layer_count(layers);
 
     unsafe {
@@ -323,9 +313,9 @@ pub extern "C" fn XSynth_ChannelGroup_SetLayerCount(id: c_ulong, layers: c_ulong
 /// if any of the given soundfont IDs is invalid.
 #[no_mangle]
 pub unsafe extern "C" fn XSynth_ChannelGroup_SetSoundfonts(
-    id: c_ulong,
-    sf_ids: *const c_ulong,
-    count: c_ulong,
+    id: u64,
+    sf_ids: *const u64,
+    count: u64,
 ) {
     unsafe {
         let group = &mut GROUPS
@@ -350,7 +340,7 @@ pub unsafe extern "C" fn XSynth_ChannelGroup_SetSoundfonts(
 /// --Errors--
 /// This function will panic if the given channel group ID does not exist.
 #[no_mangle]
-pub extern "C" fn XSynth_ChannelGroup_ClearSoundfonts(id: c_ulong) {
+pub extern "C" fn XSynth_ChannelGroup_ClearSoundfonts(id: u64) {
     unsafe {
         GROUPS
             .iter_mut()
@@ -368,7 +358,7 @@ pub extern "C" fn XSynth_ChannelGroup_ClearSoundfonts(id: c_ulong) {
 /// --Parameters--
 /// - id: The ID of the desired channel group to be removed
 #[no_mangle]
-pub extern "C" fn XSynth_ChannelGroup_Remove(id: c_ulong) {
+pub extern "C" fn XSynth_ChannelGroup_Remove(id: u64) {
     unsafe {
         GROUPS.retain(|group| group.id != id);
     }
