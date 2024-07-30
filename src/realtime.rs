@@ -219,8 +219,7 @@ pub extern "C" fn XSynth_Realtime_SetSoundfonts(sf_ids: *const u64, count: u64) 
 pub extern "C" fn XSynth_Realtime_Reset() {
     unsafe {
         if let Some(synth) = &mut RTSYNTH {
-            synth.send_event(SynthEvent::AllChannels(ChannelAudioEvent::AllNotesKilled));
-            synth.send_event(SynthEvent::AllChannels(ChannelAudioEvent::ResetControl));
+            synth.get_senders().reset_synth();
         }
     }
 }
