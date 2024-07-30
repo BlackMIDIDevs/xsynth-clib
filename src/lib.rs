@@ -2,7 +2,6 @@
 #![allow(static_mut_refs)]
 
 use std::sync::Arc;
-
 use xsynth_core::{
     channel::{ChannelConfigEvent, ChannelInitOptions},
     channel_group::{ChannelGroup, ChannelGroupConfig},
@@ -52,6 +51,15 @@ fn next_id() -> u64 {
     }
 
     0
+}
+
+/// Returns the version of XSynth
+/// 
+/// --Returns--
+/// The XSynth version. For example, 0x010102 (hex), would be version 1.1.2
+#[no_mangle]
+pub extern "C" fn XSynth_GetVersion() -> u32 {
+    env!("XSYNTHVERSION").parse().expect("Unexpected error.")
 }
 
 /// Parameters of the output audio

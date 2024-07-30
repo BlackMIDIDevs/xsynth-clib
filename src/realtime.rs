@@ -3,7 +3,7 @@ use crate::{
     XSynth_StreamParams,
 };
 use xsynth_core::{
-    channel::{ChannelAudioEvent, ChannelConfigEvent, ChannelInitOptions},
+    channel::{ChannelConfigEvent, ChannelInitOptions},
     channel_group::SynthEvent,
 };
 use xsynth_realtime::{config::XSynthRealtimeConfig, RealtimeSynth};
@@ -84,8 +84,6 @@ pub extern "C" fn XSynth_Realtime_Init(config: XSynth_RealtimeConfig) {
             let high = (config.ignore_range >> 8) as u8;
             low..=high
         };
-
-        dbg!(&ignore_range);
 
         let options = XSynthRealtimeConfig {
             channel_init_options,

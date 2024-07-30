@@ -9,9 +9,10 @@ crate-type = ["cdylib"]
 
 [dependencies]
 midi-toolkit-rs = { git = "https://github.com/arduano/midi-toolkit-rs.git", rev = "26747a3" }
-xsynth-core = { git = "https://github.com/arduano/xsynth.git", rev = "d4b6bc4" }
-xsynth-realtime = { git = "https://github.com/arduano/xsynth.git", rev = "d4b6bc4" }
-xsynth-soundfonts = { git = "https://github.com/arduano/xsynth.git", rev = "d4b6bc4" }
+xsynth-core = { git = "https://github.com/arduano/xsynth.git", rev = "3385cd0" }
+xsynth-realtime = { git = "https://github.com/arduano/xsynth.git", rev = "3385cd0" }
+xsynth-soundfonts = { git = "https://github.com/arduano/xsynth.git", rev = "3385cd0" }
 
 [build-dependencies]
 cbindgen = "0.26.0"
+version-number = "0.4.0"
