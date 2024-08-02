@@ -7,8 +7,8 @@ use std::{
 use xsynth_core::soundfont::{Interpolator, SampleSoundfont, SoundfontInitOptions};
 
 use crate::{
-    convert_streamparams_to_rust, Soundfont, XSynth_GenDefault_StreamParams, XSynth_StreamParams,
-    SOUNDFONTS, consts::*,
+    consts::*, convert_streamparams_to_rust, Soundfont, XSynth_GenDefault_StreamParams,
+    XSynth_StreamParams, SOUNDFONTS,
 };
 
 static mut ID_COUNTER: u64 = 0;
@@ -117,7 +117,7 @@ pub extern "C" fn XSynth_Soundfont_LoadNew(
                 _ => Interpolator::Nearest,
             },
         };
-        
+
         let stream_params = convert_streamparams_to_rust(options.stream_params);
 
         let new =

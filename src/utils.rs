@@ -31,13 +31,29 @@ pub fn convert_event(channel: u32, event: u16, params: u16) -> SynthEvent {
         MIDI_EVENT_ALLNOTESKILLED => ChannelAudioEvent::AllNotesKilled,
         MIDI_EVENT_ALLNOTESOFF => ChannelAudioEvent::AllNotesOff,
         MIDI_EVENT_RESETCONTROL => ChannelAudioEvent::ResetControl,
-        MIDI_EVENT_PROGRAMCHANGE => ChannelAudioEvent::ProgramChange((params & 255) as u8),
+        MIDI_EVENT_PROGRAMCHANGE => {
+            let val = ((params & 255) as u8).clamp(0, 127);
+            ChannelAudioEvent::ProgramChange(val)
+        }
         MIDI_EVENT_CONTROL => {
-            let val1 = (params & 255) as u8;
-            let val2 = (params >> 8) as u8;
+            let val1 = ((params & 255) as u8).clamp(0, 127);
+            let val2 = ((params >> 8) as u8).clamp(0, 127);
             ChannelAudioEvent::Control(ControlEvent::Raw(val1, val2))
         }
-        MIDI_EVENT_PITCH => ChannelAudioEvent::Control(ControlEvent::PitchBend(params as f32)),
+        MIDI_EVENT_PITCH => {
+            let val = (params as f32).clamp(0.0, 16384.0);
+            let val = (val - 8192.0) / 8192.0;
+            ChannelAudioEvent::Control(ControlEvent::PitchBendValue(val))
+        }
+        MIDI_EVENT_FINETUNE => {
+            let val = (params as f32).clamp(0.0, 8192.0);
+            let val = (val as f32 - 4096.0) / 4096.0 * 100.0;
+            ChannelAudioEvent::Control(ControlEvent::FineTune(val))
+        }
+        MIDI_EVENT_COARSETUNE => {
+            let val = (params as f32).clamp(0.0, 128.0);
+            ChannelAudioEvent::Control(ControlEvent::CoarseTune(val - 64.0))
+        }
         _ => panic!("Unexpected MIDI event."),
     };
 

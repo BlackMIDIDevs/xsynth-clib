@@ -64,7 +64,7 @@ pub extern "C" fn XSynth_GetVersion() -> u32 {
 /// Parameters of the output audio
 /// - sample_rate: Audio sample rate
 /// - audio_channels: Number of audio channels
-///         Supported: AUDIO_CHANNELS_MONO (mono), AUDIO_CHANNELS_STEREO (stereo) 
+///         Supported: AUDIO_CHANNELS_MONO (mono), AUDIO_CHANNELS_STEREO (stereo)
 #[repr(C)]
 pub struct XSynth_StreamParams {
     pub sample_rate: u32,
@@ -211,6 +211,10 @@ pub extern "C" fn XSynth_ChannelGroup_VoiceCount(id: u64) -> u64 {
 ///         params: preset number
 /// - MIDI_EVENT_PITCH: Changes the pitch wheel position
 ///         params: pitch wheel position (0-16383, 8192=normal/middle)
+/// - MIDI_EVENT_FINETUNE: Changes the fine tuning
+///         params: fine tune value in cents (0-8192, 4096=normal/middle)
+/// - MIDI_EVENT_COARSETUNE: Changes the coarse tuning
+///         params: coarse tune value in semitones (0-128, 64=normal/middle)
 ///
 /// --Errors--
 /// This function will panic if the given channel group ID does not exist.
