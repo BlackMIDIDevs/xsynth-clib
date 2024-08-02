@@ -8,34 +8,32 @@ use xsynth_core::soundfont::{Interpolator, SampleSoundfont, SoundfontInitOptions
 
 use crate::{
     convert_streamparams_to_rust, Soundfont, XSynth_GenDefault_StreamParams, XSynth_StreamParams,
-    SOUNDFONTS,
+    SOUNDFONTS, consts::*,
 };
 
 static mut ID_COUNTER: u64 = 0;
 
-fn next_id() -> u64 {
+fn next_id() -> Result<u64, ()> {
     unsafe {
-        let max = u64::MAX;
-
-        if SOUNDFONTS.len() >= max as usize {
-            panic!("Max number of soundfonts reached, cannot create more.")
-        } else if ID_COUNTER >= max {
-            for i in 0..SOUNDFONTS.len() as u64 {
+        if SOUNDFONTS.len() >= MAX_ITEMS as usize {
+            return Err(());
+        } else if ID_COUNTER >= MAX_ITEMS {
+            for i in 0..MAX_ITEMS {
                 if !SOUNDFONTS.iter().any(|g| g.id == i) {
-                    return i;
+                    return Ok(i);
                 }
             }
         } else {
             let id = ID_COUNTER;
             ID_COUNTER += 1;
-            return id;
+            return Ok(id);
         }
     }
 
-    0
+    Err(())
 }
 
-fn convert_value_to_option(val: i16) -> Option<u8> {
+fn convert_program_value(val: i16) -> Option<u8> {
     if val < 0 {
         None
     } else {
@@ -54,7 +52,8 @@ fn convert_value_to_option(val: i16) -> Option<u8> {
 ///         only affecting the use of the low pass filter. Setting to false may
 ///         improve performance slightly.
 /// - interpolator: The type of interpolator to use for the new soundfont
-///         0 = Nearest Neighbor, 1 = Linear
+///         Available values: INTERPOLATION_NEAREST (Nearest Neighbor interpolation),
+///         INTERPOLATION_LINEAR (Linear interpolation)
 #[repr(C)]
 pub struct XSynth_SoundfontOptions {
     pub stream_params: XSynth_StreamParams,
@@ -62,7 +61,7 @@ pub struct XSynth_SoundfontOptions {
     pub preset: i16,
     pub linear_release: bool,
     pub use_effects: bool,
-    pub interpolator: u8,
+    pub interpolator: u16,
 }
 
 /// Generates the default values for the XSynth_SoundfontOptions struct
@@ -72,7 +71,7 @@ pub struct XSynth_SoundfontOptions {
 /// - preset: -1
 /// - linear_release: False
 /// - use_effects: True
-/// - interpolator: 0 (Nearest Neighbor)
+/// - interpolator: INTERPOLATION_NEAREST
 #[no_mangle]
 pub extern "C" fn XSynth_GenDefault_SoundfontOptions() -> XSynth_SoundfontOptions {
     XSynth_SoundfontOptions {
@@ -81,7 +80,7 @@ pub extern "C" fn XSynth_GenDefault_SoundfontOptions() -> XSynth_SoundfontOption
         preset: -1,
         linear_release: false,
         use_effects: true,
-        interpolator: 0,
+        interpolator: INTERPOLATION_NEAREST,
     }
 }
 
@@ -97,7 +96,9 @@ pub extern "C" fn XSynth_GenDefault_SoundfontOptions() -> XSynth_SoundfontOption
 /// to send it to a channel group.
 ///
 /// --Errors--
-/// This function will error if XSynth has trouble parsing the soundfont.
+/// This function will error if XSynth has trouble parsing the soundfont or
+/// if the maximum number of active groups is reached.
+/// Max: 65.535 soundfonts.
 #[no_mangle]
 pub extern "C" fn XSynth_Soundfont_LoadNew(
     path: *const c_char,
@@ -107,27 +108,31 @@ pub extern "C" fn XSynth_Soundfont_LoadNew(
         let path = PathBuf::from(CStr::from_ptr(path).to_str().expect("Unexpected error."));
 
         let sfinit = SoundfontInitOptions {
-            bank: convert_value_to_option(options.bank),
-            preset: convert_value_to_option(options.preset),
+            bank: convert_program_value(options.bank),
+            preset: convert_program_value(options.preset),
             linear_release: options.linear_release,
             use_effects: options.use_effects,
             interpolator: match options.interpolator {
-                1 => Interpolator::Linear,
+                INTERPOLATION_LINEAR => Interpolator::Linear,
                 _ => Interpolator::Nearest,
             },
         };
-
+        
         let stream_params = convert_streamparams_to_rust(options.stream_params);
 
         let new =
             SampleSoundfont::new(path, stream_params, sfinit).expect("Error loading soundfont.");
 
-        let id = next_id();
-        SOUNDFONTS.push(Soundfont {
-            id,
-            soundfont: Arc::new(new),
-        });
-        id
+        match next_id() {
+            Ok(id) => {
+                SOUNDFONTS.push(Soundfont {
+                    id,
+                    soundfont: Arc::new(new),
+                });
+                id
+            }
+            Err(..) => panic!("Max number of soundfonts reached, cannot create more."),
+        }
     }
 }
 

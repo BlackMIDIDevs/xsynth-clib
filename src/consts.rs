@@ -1,3 +1,5 @@
+pub(crate) const MAX_ITEMS: u64 = u16::MAX as u64;
+
 pub const MIDI_EVENT_NOTEON: u16 = 0;
 pub const MIDI_EVENT_NOTEOFF: u16 = 1;
 pub const MIDI_EVENT_ALLNOTESOFF: u16 = 2;
@@ -6,3 +8,9 @@ pub const MIDI_EVENT_RESETCONTROL: u16 = 4;
 pub const MIDI_EVENT_CONTROL: u16 = 5;
 pub const MIDI_EVENT_PROGRAMCHANGE: u16 = 6;
 pub const MIDI_EVENT_PITCH: u16 = 7;
+
+pub const INTERPOLATION_NEAREST: u16 = 100;
+pub const INTERPOLATION_LINEAR: u16 = 101;
+
+pub const AUDIO_CHANNELS_MONO: u16 = 1;
+pub const AUDIO_CHANNELS_STEREO: u16 = 2;

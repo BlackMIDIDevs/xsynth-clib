@@ -9,7 +9,7 @@ use xsynth_core::{
     AudioPipe,
 };
 
-mod consts;
+pub(crate) mod consts;
 mod realtime;
 mod soundfont;
 mod utils;
@@ -27,34 +27,33 @@ struct Soundfont {
     pub id: u64,
     pub soundfont: Arc<dyn SoundfontBase>,
 }
-static mut SOUNDFONTS: Vec<Soundfont> = Vec::new();
 
-static mut ID_COUNTER: u64 = 0;
-
-fn next_id() -> u64 {
+fn next_id() -> Result<u64, ()> {
     unsafe {
-        let max = u64::MAX;
-
-        if GROUPS.len() >= max as usize {
-            panic!("Max number of groups reached, cannot create more.")
-        } else if ID_COUNTER >= max {
-            for i in 0..GROUPS.len() as u64 {
+        if GROUPS.len() >= MAX_ITEMS as usize {
+            return Err(());
+        } else if ID_COUNTER >= MAX_ITEMS {
+            for i in 0..MAX_ITEMS {
                 if !GROUPS.iter().any(|g| g.id == i) {
-                    return i;
+                    return Ok(i);
                 }
             }
         } else {
             let id = ID_COUNTER;
             ID_COUNTER += 1;
-            return id;
+            return Ok(id);
         }
     }
 
-    0
+    Err(())
 }
 
+static mut SOUNDFONTS: Vec<Soundfont> = Vec::new();
+
+static mut ID_COUNTER: u64 = 0;
+
 /// Returns the version of XSynth
-/// 
+///
 /// --Returns--
 /// The XSynth version. For example, 0x010102 (hex), would be version 1.1.2
 #[no_mangle]
@@ -64,7 +63,8 @@ pub extern "C" fn XSynth_GetVersion() -> u32 {
 
 /// Parameters of the output audio
 /// - sample_rate: Audio sample rate
-/// - audio_channels: Number of audio channels (only mono (1) and stereo (2) are supported)
+/// - audio_channels: Number of audio channels
+///         Supported: AUDIO_CHANNELS_MONO (mono), AUDIO_CHANNELS_STEREO (stereo) 
 #[repr(C)]
 pub struct XSynth_StreamParams {
     pub sample_rate: u32,
@@ -74,12 +74,12 @@ pub struct XSynth_StreamParams {
 /// Generates the default values for the XSynth_StreamParams struct
 /// Default values are:
 /// - sample_rate = 44.1kHz
-/// - audio_channels = 2 (stereo)
+/// - audio_channels = AUDIO_CHANNELS_STEREO
 #[no_mangle]
 pub extern "C" fn XSynth_GenDefault_StreamParams() -> XSynth_StreamParams {
     XSynth_StreamParams {
         sample_rate: 44100,
-        audio_channels: 2,
+        audio_channels: AUDIO_CHANNELS_STEREO,
     }
 }
 
@@ -134,8 +134,8 @@ pub extern "C" fn XSynth_GenDefault_GroupOptions() -> XSynth_GroupOptions {
 /// they are specific to each group.
 ///
 /// --Errors--
-/// This function will panic if the maximum number of active groups is reached (which
-/// is about eighteen quintillion).
+/// This function will panic if the maximum number of active groups is reached.
+/// Max: 65.535 groups.
 #[no_mangle]
 pub extern "C" fn XSynth_ChannelGroup_Create(options: XSynth_GroupOptions) -> u64 {
     unsafe {
@@ -157,9 +157,13 @@ pub extern "C" fn XSynth_ChannelGroup_Create(options: XSynth_GroupOptions) -> u6
 
         let new = ChannelGroup::new(config);
 
-        let id = next_id();
-        GROUPS.push(XSynthGroup { id, group: new });
-        id
+        match next_id() {
+            Ok(id) => {
+                GROUPS.push(XSynthGroup { id, group: new });
+                id
+            }
+            Err(..) => panic!("Max number of channel groups reached, cannot create more."),
+        }
     }
 }
 
@@ -169,7 +173,7 @@ pub extern "C" fn XSynth_ChannelGroup_Create(options: XSynth_GroupOptions) -> u6
 /// - id: The ID of the desired channel group
 ///
 /// --Returns--
-/// An unsigned long integer of the voice count
+/// A 64bit integer of the voice count
 ///
 /// --Errors--
 /// This function will panic if the given channel group ID does not exist.
@@ -233,7 +237,9 @@ pub extern "C" fn XSynth_ChannelGroup_SendEvent(id: u64, channel: u32, event: u1
 ///
 /// --Parameters--
 /// - id: The ID of the desired channel group
-/// - buffer: Pointer to a mutable buffer to receive the audio samples
+/// - buffer: Pointer to a mutable buffer to receive the audio samples. Each
+///         item of the buffer should correspond to an audio sample of type
+///         32bit float.
 /// - length: Length of the above buffer, or number of samples to read
 ///
 /// --Errors--
