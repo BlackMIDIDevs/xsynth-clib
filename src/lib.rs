@@ -256,6 +256,10 @@ pub unsafe extern "C" fn XSynth_ChannelGroup_ReadSamples(id: u64, buffer: *mut f
         }
 
         let slc = std::slice::from_raw_parts_mut(buffer, length as usize);
+        
+        slc
+            .iter_mut()
+            .for_each(|s| *s = 0.0);
 
         GROUPS
             .iter_mut()
