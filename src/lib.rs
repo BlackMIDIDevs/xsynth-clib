@@ -1,7 +1,8 @@
 #![allow(clippy::missing_safety_doc)]
 #![allow(static_mut_refs)]
 
-use std::sync::{Arc, LazyLock, Mutex};
+use function_name::named;
+use std::sync::{Arc, LazyLock, Mutex, RwLock};
 use xsynth_core::{
     channel::{ChannelConfigEvent, ChannelInitOptions},
     channel_group::{ChannelGroup, ChannelGroupConfig},
@@ -19,10 +20,10 @@ use xsynth_realtime::SynthEvent;
 
 struct XSynthGroup {
     id: u64,
-    group: ChannelGroup,
+    group: Arc<Mutex<ChannelGroup>>,
 }
-static mut GROUPS: LazyLock<Arc<Mutex<Vec<XSynthGroup>>>> =
-    LazyLock::new(|| Arc::new(Mutex::new(Vec::new())));
+static mut GROUPS: LazyLock<Arc<RwLock<Vec<XSynthGroup>>>> =
+    LazyLock::new(|| Arc::new(RwLock::new(Vec::new())));
 
 struct Soundfont {
     pub id: u64,
@@ -31,11 +32,11 @@ struct Soundfont {
 
 fn next_id() -> Result<u64, ()> {
     unsafe {
-        if GROUPS.lock().unwrap().len() >= MAX_ITEMS as usize {
+        if GROUPS.read().unwrap().len() >= MAX_ITEMS as usize {
             return Err(());
         } else if ID_COUNTER >= MAX_ITEMS {
             for i in 0..MAX_ITEMS {
-                if !GROUPS.lock().unwrap().iter().any(|g| g.id == i) {
+                if !GROUPS.read().unwrap().iter().any(|g| g.id == i) {
                     return Ok(i);
                 }
             }
@@ -49,8 +50,8 @@ fn next_id() -> Result<u64, ()> {
     Err(())
 }
 
-static mut SOUNDFONTS: LazyLock<Arc<Mutex<Vec<Soundfont>>>> =
-    LazyLock::new(|| Arc::new(Mutex::new(Vec::new())));
+static mut SOUNDFONTS: LazyLock<Arc<RwLock<Vec<Soundfont>>>> =
+    LazyLock::new(|| Arc::new(RwLock::new(Vec::new())));
 
 static mut ID_COUNTER: u64 = 0;
 
@@ -58,9 +59,12 @@ static mut ID_COUNTER: u64 = 0;
 ///
 /// --Returns--
 /// The XSynth version. For example, 0x010102 (hex), would be version 1.1.2
+#[named]
 #[no_mangle]
 pub extern "C" fn XSynth_GetVersion() -> u32 {
-    env!("XSYNTHVERSION").parse().expect("Unexpected error.")
+    env!("XSYNTHVERSION")
+        .parse()
+        .unwrap_or_else(|_| panic!("{} | Could not parse version number.", function_name!()))
 }
 
 /// Parameters of the output audio
@@ -138,6 +142,7 @@ pub extern "C" fn XSynth_GenDefault_GroupOptions() -> XSynth_GroupOptions {
 /// --Errors--
 /// This function will panic if the maximum number of active groups is reached.
 /// Max: 65.535 groups.
+#[named]
 #[no_mangle]
 pub extern "C" fn XSynth_ChannelGroup_Create(options: XSynth_GroupOptions) -> u64 {
     unsafe {
@@ -158,13 +163,17 @@ pub extern "C" fn XSynth_ChannelGroup_Create(options: XSynth_GroupOptions) -> u6
         };
 
         let new = ChannelGroup::new(config);
+        let new = Arc::new(Mutex::new(new));
 
         match next_id() {
             Ok(id) => {
-                GROUPS.lock().unwrap().push(XSynthGroup { id, group: new });
+                GROUPS.write().unwrap().push(XSynthGroup { id, group: new });
                 id
             }
-            Err(..) => panic!("Max number of channel groups reached, cannot create more."),
+            Err(..) => panic!(
+                "{} | Max number of channel groups reached, cannot create more.",
+                function_name!()
+            ),
         }
     }
 }
@@ -179,17 +188,22 @@ pub extern "C" fn XSynth_ChannelGroup_Create(options: XSynth_GroupOptions) -> u6
 ///
 /// --Errors--
 /// This function will panic if the given channel group ID does not exist.
+#[named]
 #[no_mangle]
 pub extern "C" fn XSynth_ChannelGroup_VoiceCount(id: u64) -> u64 {
     unsafe {
-        GROUPS
-            .lock()
+        let group = GROUPS
+            .read()
             .unwrap()
             .iter()
             .find(|g| g.id == id)
-            .unwrap_or_else(|| panic!("Group does not exist."))
+            .unwrap_or_else(|| panic!("{} | Group {} does not exist.", function_name!(), id))
             .group
-            .voice_count()
+            .clone();
+
+        let voices = group.lock().unwrap().voice_count();
+
+        voices
     }
 }
 
@@ -222,19 +236,22 @@ pub extern "C" fn XSynth_ChannelGroup_VoiceCount(id: u64) -> u64 {
 ///
 /// --Errors--
 /// This function will panic if the given channel group ID does not exist.
+#[named]
 #[no_mangle]
 pub extern "C" fn XSynth_ChannelGroup_SendEvent(id: u64, channel: u32, event: u16, params: u16) {
     unsafe {
         let ev = convert_event(channel, event, params);
 
-        GROUPS
-            .lock()
+        let group = GROUPS
+            .read()
             .unwrap()
-            .iter_mut()
+            .iter()
             .find(|g| g.id == id)
-            .unwrap_or_else(|| panic!("Group does not exist."))
+            .unwrap_or_else(|| panic!("{} | Group {} does not exist.", function_name!(), id))
             .group
-            .send_event(ev);
+            .clone();
+
+        group.lock().unwrap().send_event(ev);
     }
 }
 
@@ -254,6 +271,7 @@ pub extern "C" fn XSynth_ChannelGroup_SendEvent(id: u64, channel: u32, event: u1
 ///
 /// --Errors--
 /// This function will panic if the given channel group ID does not exist.
+#[named]
 #[no_mangle]
 pub unsafe extern "C" fn XSynth_ChannelGroup_ReadSamples(id: u64, buffer: *mut f32, length: u64) {
     unsafe {
@@ -263,14 +281,16 @@ pub unsafe extern "C" fn XSynth_ChannelGroup_ReadSamples(id: u64, buffer: *mut f
 
         let slc = std::slice::from_raw_parts_mut(buffer, length as usize);
 
-        GROUPS
-            .lock()
+        let group = GROUPS
+            .read()
             .unwrap()
-            .iter_mut()
+            .iter()
             .find(|g| g.id == id)
-            .unwrap_or_else(|| panic!("Group does not exist."))
+            .unwrap_or_else(|| panic!("{} | Group {} does not exist.", function_name!(), id))
             .group
-            .read_samples(slc);
+            .clone();
+
+        group.lock().unwrap().read_samples(slc);
     }
 }
 
@@ -286,20 +306,21 @@ pub unsafe extern "C" fn XSynth_ChannelGroup_ReadSamples(id: u64, buffer: *mut f
 ///
 /// --Errors--
 /// This function will panic if the given channel group ID does not exist.
+#[named]
 #[no_mangle]
 pub extern "C" fn XSynth_ChannelGroup_GetStreamParams(id: u64) -> XSynth_StreamParams {
     unsafe {
-        let sp = &GROUPS
-            .lock()
+        let group = GROUPS
+            .read()
             .unwrap()
             .iter()
             .find(|g| g.id == id)
-            .unwrap_or_else(|| panic!("Group does not exist."))
+            .unwrap_or_else(|| panic!("{} | Group {} does not exist.", function_name!(), id))
             .group
-            .stream_params()
             .clone();
 
-        convert_streamparams_to_c(sp)
+        let sp = *group.lock().unwrap().stream_params();
+        convert_streamparams_to_c(&sp)
     }
 }
 
@@ -313,21 +334,24 @@ pub extern "C" fn XSynth_ChannelGroup_GetStreamParams(id: u64) -> XSynth_StreamP
 ///
 /// --Errors--
 /// This function will panic if the given channel group ID does not exist.
+#[named]
 #[no_mangle]
 pub extern "C" fn XSynth_ChannelGroup_SetLayerCount(id: u64, layers: u64) {
     let layercount = convert_layer_count(layers);
 
     unsafe {
-        GROUPS
-            .lock()
+        let group = GROUPS
+            .read()
             .unwrap()
-            .iter_mut()
+            .iter()
             .find(|g| g.id == id)
-            .unwrap_or_else(|| panic!("Group does not exist."))
+            .unwrap_or_else(|| panic!("{} | Group {} does not exist.", function_name!(), id))
             .group
-            .send_event(SynthEvent::ChannelConfig(
-                ChannelConfigEvent::SetLayerCount(layercount),
-            ));
+            .clone();
+
+        group.lock().unwrap().send_event(SynthEvent::ChannelConfig(
+            ChannelConfigEvent::SetLayerCount(layercount),
+        ));
     }
 }
 
@@ -342,6 +366,7 @@ pub extern "C" fn XSynth_ChannelGroup_SetLayerCount(id: u64, layers: u64) {
 /// --Errors--
 /// This function will panic if the given channel group ID does not exist, or
 /// if any of the given soundfont IDs is invalid.
+#[named]
 #[no_mangle]
 pub unsafe extern "C" fn XSynth_ChannelGroup_SetSoundfonts(
     id: u64,
@@ -352,16 +377,18 @@ pub unsafe extern "C" fn XSynth_ChannelGroup_SetSoundfonts(
         let ids = std::slice::from_raw_parts(sf_ids, count as usize);
         let sfvec = sfids_to_vec(ids);
 
-        GROUPS
-            .lock()
+        let group = GROUPS
+            .read()
             .unwrap()
-            .iter_mut()
+            .iter()
             .find(|g| g.id == id)
-            .unwrap_or_else(|| panic!("Group does not exist."))
+            .unwrap_or_else(|| panic!("{} | Group {} does not exist.", function_name!(), id))
             .group
-            .send_event(SynthEvent::ChannelConfig(
-                ChannelConfigEvent::SetSoundfonts(sfvec),
-            ));
+            .clone();
+
+        group.lock().unwrap().send_event(SynthEvent::ChannelConfig(
+            ChannelConfigEvent::SetSoundfonts(sfvec),
+        ));
     }
 }
 
@@ -372,19 +399,22 @@ pub unsafe extern "C" fn XSynth_ChannelGroup_SetSoundfonts(
 ///
 /// --Errors--
 /// This function will panic if the given channel group ID does not exist.
+#[named]
 #[no_mangle]
 pub extern "C" fn XSynth_ChannelGroup_ClearSoundfonts(id: u64) {
     unsafe {
-        GROUPS
-            .lock()
+        let group = GROUPS
+            .read()
             .unwrap()
-            .iter_mut()
+            .iter()
             .find(|g| g.id == id)
-            .unwrap_or_else(|| panic!("Group does not exist."))
+            .unwrap_or_else(|| panic!("{} | Group {} does not exist.", function_name!(), id))
             .group
-            .send_event(SynthEvent::ChannelConfig(
-                ChannelConfigEvent::SetSoundfonts(Vec::new()),
-            ));
+            .clone();
+
+        group.lock().unwrap().send_event(SynthEvent::ChannelConfig(
+            ChannelConfigEvent::SetSoundfonts(Vec::new()),
+        ));
     }
 }
 
@@ -395,7 +425,7 @@ pub extern "C" fn XSynth_ChannelGroup_ClearSoundfonts(id: u64) {
 #[no_mangle]
 pub extern "C" fn XSynth_ChannelGroup_Remove(id: u64) {
     unsafe {
-        GROUPS.lock().unwrap().retain(|group| group.id != id);
+        GROUPS.write().unwrap().retain(|group| group.id != id);
     }
 }
 
@@ -403,6 +433,6 @@ pub extern "C" fn XSynth_ChannelGroup_Remove(id: u64) {
 #[no_mangle]
 pub extern "C" fn XSynth_ChannelGroup_RemoveAll() {
     unsafe {
-        GROUPS.lock().unwrap().clear();
+        GROUPS.write().unwrap().clear();
     }
 }

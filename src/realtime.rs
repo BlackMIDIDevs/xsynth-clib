@@ -2,6 +2,7 @@ use crate::{
     convert_event, convert_layer_count, convert_streamparams_to_c, sfids_to_vec,
     XSynth_StreamParams,
 };
+use function_name::named;
 use xsynth_core::{
     channel::{ChannelConfigEvent, ChannelInitOptions},
     channel_group::SynthEvent,
@@ -133,13 +134,14 @@ pub extern "C" fn XSynth_Realtime_IsActive() -> bool {
 ///
 /// --Errors--
 /// This function will panic if the realtime module is not loaded.
+#[named]
 #[no_mangle]
 pub extern "C" fn XSynth_Realtime_GetStreamParams() -> XSynth_StreamParams {
     unsafe {
         if let Some(synth) = &RTSYNTH {
             convert_streamparams_to_c(&synth.stream_params())
         } else {
-            panic!("Realtime synth not loaded")
+            panic!("{} | Realtime synth not loaded", function_name!())
         }
     }
 }
@@ -152,6 +154,7 @@ pub extern "C" fn XSynth_Realtime_GetStreamParams() -> XSynth_StreamParams {
 ///
 /// --Errors--
 /// This function will panic if the realtime module is not loaded.
+#[named]
 #[no_mangle]
 pub extern "C" fn XSynth_Realtime_GetStats() -> XSynth_RealtimeStats {
     unsafe {
@@ -164,7 +167,7 @@ pub extern "C" fn XSynth_Realtime_GetStats() -> XSynth_RealtimeStats {
                 render_time: stats.buffer().average_renderer_load(),
             }
         } else {
-            panic!("Realtime synth not loaded")
+            panic!("{} | Realtime synth not loaded", function_name!())
         }
     }
 }

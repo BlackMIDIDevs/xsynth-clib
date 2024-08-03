@@ -1,3 +1,4 @@
+use function_name::named;
 use std::{
     ffi::{c_char, CStr},
     path::PathBuf,
@@ -15,11 +16,11 @@ static mut ID_COUNTER: u64 = 0;
 
 fn next_id() -> Result<u64, ()> {
     unsafe {
-        if SOUNDFONTS.lock().unwrap().len() >= MAX_ITEMS as usize {
+        if SOUNDFONTS.read().unwrap().len() >= MAX_ITEMS as usize {
             return Err(());
         } else if ID_COUNTER >= MAX_ITEMS {
             for i in 0..MAX_ITEMS {
-                if !SOUNDFONTS.lock().unwrap().iter().any(|g| g.id == i) {
+                if !SOUNDFONTS.read().unwrap().iter().any(|g| g.id == i) {
                     return Ok(i);
                 }
             }
@@ -99,13 +100,20 @@ pub extern "C" fn XSynth_GenDefault_SoundfontOptions() -> XSynth_SoundfontOption
 /// This function will error if XSynth has trouble parsing the soundfont or
 /// if the maximum number of active groups is reached.
 /// Max: 65.535 soundfonts.
+#[named]
 #[no_mangle]
 pub extern "C" fn XSynth_Soundfont_LoadNew(
     path: *const c_char,
     options: XSynth_SoundfontOptions,
 ) -> u64 {
     unsafe {
-        let path = PathBuf::from(CStr::from_ptr(path).to_str().expect("Unexpected error."));
+        let path = PathBuf::from(CStr::from_ptr(path).to_str().unwrap_or_else(|_| {
+            panic!(
+                "{} | Error parsing soundfont path: {:?}",
+                function_name!(),
+                path
+            )
+        }));
 
         let sfinit = SoundfontInitOptions {
             bank: convert_program_value(options.bank),
@@ -120,18 +128,22 @@ pub extern "C" fn XSynth_Soundfont_LoadNew(
 
         let stream_params = convert_streamparams_to_rust(options.stream_params);
 
-        let new =
-            SampleSoundfont::new(path, stream_params, sfinit).expect("Error loading soundfont.");
+        let new = SampleSoundfont::new(path.clone(), stream_params, sfinit).unwrap_or_else(|_| {
+            panic!("{} | Error loading soundfont: {:?}", function_name!(), path)
+        });
 
         match next_id() {
             Ok(id) => {
-                SOUNDFONTS.lock().unwrap().push(Soundfont {
+                SOUNDFONTS.write().unwrap().push(Soundfont {
                     id,
                     soundfont: Arc::new(new),
                 });
                 id
             }
-            Err(..) => panic!("Max number of soundfonts reached, cannot create more."),
+            Err(..) => panic!(
+                "{} | Max number of soundfonts reached, cannot create more.",
+                function_name!()
+            ),
         }
     }
 }
@@ -151,7 +163,7 @@ pub extern "C" fn XSynth_Soundfont_LoadNew(
 #[no_mangle]
 pub extern "C" fn XSynth_Soundfont_Remove(id: u64) {
     unsafe {
-        SOUNDFONTS.lock().unwrap().retain(|group| group.id != id);
+        SOUNDFONTS.write().unwrap().retain(|group| group.id != id);
     }
 }
 
@@ -161,6 +173,6 @@ pub extern "C" fn XSynth_Soundfont_Remove(id: u64) {
 #[no_mangle]
 pub extern "C" fn XSynth_Soundfont_RemoveAll() {
     unsafe {
-        SOUNDFONTS.lock().unwrap().clear();
+        SOUNDFONTS.write().unwrap().clear();
     }
 }
