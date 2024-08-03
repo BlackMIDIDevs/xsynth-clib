@@ -47,7 +47,7 @@ pub fn convert_event(channel: u32, event: u16, params: u16) -> SynthEvent {
         }
         MIDI_EVENT_FINETUNE => {
             let val = (params as f32).clamp(0.0, 8192.0);
-            let val = (val as f32 - 4096.0) / 4096.0 * 100.0;
+            let val = (val - 4096.0) / 4096.0 * 100.0;
             ChannelAudioEvent::Control(ControlEvent::FineTune(val))
         }
         MIDI_EVENT_COARSETUNE => {
@@ -63,12 +63,14 @@ pub fn convert_event(channel: u32, event: u16, params: u16) -> SynthEvent {
 pub unsafe fn sfids_to_vec(ids: &[u64]) -> Vec<Arc<dyn SoundfontBase>> {
     ids.iter()
         .map(|id| {
-            let sf = &SOUNDFONTS
+            SOUNDFONTS
+                .lock()
+                .unwrap()
                 .iter()
                 .find(|sf| sf.id == *id)
                 .unwrap_or_else(|| panic!("Soundfont does not exist."))
-                .soundfont;
-            sf.clone()
+                .soundfont
+                .clone()
         })
         .collect()
 }

@@ -15,11 +15,11 @@ static mut ID_COUNTER: u64 = 0;
 
 fn next_id() -> Result<u64, ()> {
     unsafe {
-        if SOUNDFONTS.len() >= MAX_ITEMS as usize {
+        if SOUNDFONTS.lock().unwrap().len() >= MAX_ITEMS as usize {
             return Err(());
         } else if ID_COUNTER >= MAX_ITEMS {
             for i in 0..MAX_ITEMS {
-                if !SOUNDFONTS.iter().any(|g| g.id == i) {
+                if !SOUNDFONTS.lock().unwrap().iter().any(|g| g.id == i) {
                     return Ok(i);
                 }
             }
@@ -125,7 +125,7 @@ pub extern "C" fn XSynth_Soundfont_LoadNew(
 
         match next_id() {
             Ok(id) => {
-                SOUNDFONTS.push(Soundfont {
+                SOUNDFONTS.lock().unwrap().push(Soundfont {
                     id,
                     soundfont: Arc::new(new),
                 });
@@ -151,7 +151,7 @@ pub extern "C" fn XSynth_Soundfont_LoadNew(
 #[no_mangle]
 pub extern "C" fn XSynth_Soundfont_Remove(id: u64) {
     unsafe {
-        SOUNDFONTS.retain(|group| group.id != id);
+        SOUNDFONTS.lock().unwrap().retain(|group| group.id != id);
     }
 }
 
@@ -161,6 +161,6 @@ pub extern "C" fn XSynth_Soundfont_Remove(id: u64) {
 #[no_mangle]
 pub extern "C" fn XSynth_Soundfont_RemoveAll() {
     unsafe {
-        SOUNDFONTS.clear();
+        SOUNDFONTS.lock().unwrap().clear();
     }
 }
