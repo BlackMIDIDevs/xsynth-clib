@@ -1,5 +1,3 @@
-pub(crate) const MAX_ITEMS: u64 = u16::MAX as u64;
-
 pub const MIDI_EVENT_NOTEON: u16 = 0;
 pub const MIDI_EVENT_NOTEOFF: u16 = 1;
 pub const MIDI_EVENT_ALLNOTESOFF: u16 = 2;

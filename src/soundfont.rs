@@ -1,38 +1,15 @@
-use function_name::named;
 use std::{
     ffi::{c_char, CStr},
     path::PathBuf,
     sync::Arc,
 };
 
-use xsynth_core::soundfont::{Interpolator, SampleSoundfont, SoundfontInitOptions};
+use xsynth_core::soundfont::{Interpolator, SampleSoundfont, SoundfontBase, SoundfontInitOptions};
 
 use crate::{
-    consts::*, convert_streamparams_to_rust, Soundfont, XSynth_GenDefault_StreamParams,
-    XSynth_StreamParams, SOUNDFONTS,
+    consts::*, convert_streamparams_to_rust, XSynth_GenDefault_StreamParams, XSynth_Soundfont,
+    XSynth_StreamParams,
 };
-
-static mut ID_COUNTER: u64 = 0;
-
-fn next_id() -> Result<u64, ()> {
-    unsafe {
-        if SOUNDFONTS.read().unwrap().len() >= MAX_ITEMS as usize {
-            return Err(());
-        } else if ID_COUNTER >= MAX_ITEMS {
-            for i in 0..MAX_ITEMS {
-                if !SOUNDFONTS.read().unwrap().iter().any(|g| g.id == i) {
-                    return Ok(i);
-                }
-            }
-        } else {
-            let id = ID_COUNTER;
-            ID_COUNTER += 1;
-            return Ok(id);
-        }
-    }
-
-    Err(())
-}
 
 fn convert_program_value(val: i16) -> Option<u8> {
     if val < 0 {
@@ -93,27 +70,19 @@ pub extern "C" fn XSynth_GenDefault_SoundfontOptions() -> XSynth_SoundfontOption
 ///         (XSynth_SoundfontOptions struct)
 ///
 /// --Returns--
-/// This function returns the ID of the loaded soundfont, which can be used
-/// to send it to a channel group.
-///
-/// --Errors--
-/// This function will error if XSynth has trouble parsing the soundfont or
-/// if the maximum number of active groups is reached.
-/// Max: 65.535 soundfonts.
-#[named]
+/// This function returns the pointer (handle) of the loaded soundfont,
+/// which can be used to send it to a channel group or realtime synth.
 #[no_mangle]
 pub extern "C" fn XSynth_Soundfont_LoadNew(
     path: *const c_char,
     options: XSynth_SoundfontOptions,
-) -> u64 {
+) -> *mut XSynth_Soundfont {
     unsafe {
-        let path = PathBuf::from(CStr::from_ptr(path).to_str().unwrap_or_else(|_| {
-            panic!(
-                "{} | Error parsing soundfont path: {:?}",
-                function_name!(),
-                path
-            )
-        }));
+        let path = PathBuf::from(
+            CStr::from_ptr(path)
+                .to_str()
+                .unwrap_or_else(|_| panic!("Error parsing soundfont path: {:?}", path)),
+        );
 
         let sfinit = SoundfontInitOptions {
             bank: convert_program_value(options.bank),
@@ -128,51 +97,34 @@ pub extern "C" fn XSynth_Soundfont_LoadNew(
 
         let stream_params = convert_streamparams_to_rust(options.stream_params);
 
-        let new = SampleSoundfont::new(path.clone(), stream_params, sfinit).unwrap_or_else(|_| {
-            panic!("{} | Error loading soundfont: {:?}", function_name!(), path)
-        });
+        let new = SampleSoundfont::new(path.clone(), stream_params, sfinit)
+            .unwrap_or_else(|_| panic!("Error loading soundfont: {:?}", path));
+        let new: Arc<dyn SoundfontBase> = Arc::new(new);
+        let new = Box::new(new);
 
-        match next_id() {
-            Ok(id) => {
-                SOUNDFONTS.write().unwrap().push(Soundfont {
-                    id,
-                    soundfont: Arc::new(new),
-                });
-                id
-            }
-            Err(..) => panic!(
-                "{} | Max number of soundfonts reached, cannot create more.",
-                function_name!()
-            ),
-        }
+        Box::into_raw(new) as *mut XSynth_Soundfont
     }
 }
 
-/// Removes the desired soundfont from the ID list.
+/// Frees the handle of the desired soundfont.
 ///
-/// Keep in mind that this does not clear the memory the soundfont is
-/// using. To free the used memory the soundfont has to be unloaded/
-/// replaced in the channel groups where it was sent. The function
-/// XSynth_ChannelGroup_ClearSoundfonts can be used for this purpose.
+/// Keep in mind that this does not free the memory the soundfont is
+/// using. To clear the used memory the soundfont has to be unloaded/
+/// replaced in the channel groups/realtime synthesizers where it was
+/// sent. The following functions can be used for this purpose:
+/// - XSynth_ChannelGroup_ClearSoundfonts
+/// - XSynth_Realtime_ClearSoundfonts
 ///
-/// To completely free the memory a soundfont is using it has to both
-/// be removed from the ID list and also from any channel groups using it.
+/// To completely free the memory a soundfont is using you first need
+/// to clear its handle and then remove it from any other places it is
+/// being used.
 ///
 /// --Parameters--
-/// - id: The ID of the desired soundfont to be removed
+/// - handle: The pointer of the soundfont
 #[no_mangle]
-pub extern "C" fn XSynth_Soundfont_Remove(id: u64) {
+pub extern "C" fn XSynth_Soundfont_Remove(handle: *mut XSynth_Soundfont) {
     unsafe {
-        SOUNDFONTS.write().unwrap().retain(|group| group.id != id);
-    }
-}
-
-/// Removes all soundfonts from the ID list. See the documentation of the
-/// XSynth_Soundfont_Remove to find information about clearing the memory
-/// a soundfont is using.
-#[no_mangle]
-pub extern "C" fn XSynth_Soundfont_RemoveAll() {
-    unsafe {
-        SOUNDFONTS.write().unwrap().clear();
+        let handle = handle as *mut Arc<SampleSoundfont>;
+        let _ = Box::from_raw(handle);
     }
 }

@@ -1,5 +1,4 @@
-use crate::{consts::*, XSynth_StreamParams, SOUNDFONTS};
-use function_name::named;
+use crate::{consts::*, XSynth_Soundfont, XSynth_StreamParams};
 use std::sync::Arc;
 use xsynth_core::{
     channel::{ChannelAudioEvent, ControlEvent},
@@ -19,7 +18,6 @@ pub fn convert_streamparams_to_c(params: &AudioStreamParams) -> XSynth_StreamPar
     }
 }
 
-#[named]
 pub fn convert_event(channel: u32, event: u16, params: u16) -> SynthEvent {
     let ev = match event {
         MIDI_EVENT_NOTEON => {
@@ -56,26 +54,18 @@ pub fn convert_event(channel: u32, event: u16, params: u16) -> SynthEvent {
             let val = (params as f32).clamp(0.0, 128.0);
             ChannelAudioEvent::Control(ControlEvent::CoarseTune(val - 64.0))
         }
-        _ => panic!("{} | Unexpected MIDI event", function_name!()),
+        _ => panic!("Unexpected MIDI event"),
     };
 
     SynthEvent::Channel(channel, ev)
 }
 
-#[named]
-pub unsafe fn sfids_to_vec(ids: &[u64]) -> Vec<Arc<dyn SoundfontBase>> {
-    ids.iter()
-        .map(|id| {
-            SOUNDFONTS
-                .read()
-                .unwrap()
-                .iter()
-                .find(|sf| sf.id == *id)
-                .unwrap_or_else(|| {
-                    panic!("{} | Soundfont {} does not exist.", function_name!(), id)
-                })
-                .soundfont
-                .clone()
+pub unsafe fn sfids_to_vec(handles: &[*mut XSynth_Soundfont]) -> Vec<Arc<dyn SoundfontBase>> {
+    handles
+        .iter()
+        .map(|handle| {
+            let sf = *handle as *mut Arc<dyn SoundfontBase>;
+            sf.as_ref().unwrap().clone()
         })
         .collect()
 }

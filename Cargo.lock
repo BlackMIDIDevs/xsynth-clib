@@ -1619,7 +1619,7 @@ dependencies = [
 [[package]]
 name = "xsynth-core"
 version = "0.1.0"
-source = "git+https://github.com/arduano/xsynth.git?rev=3385cd0#3385cd0d4dcd56cbd3c9f77743258a0e72993fb7"
+source = "git+https://github.com/arduano/xsynth.git?tag=0.1.0#2f805fa736f0dc3edc8e7694da568413687ed9b5"
 dependencies = [
  "atomic_refcell",
  "biquad",
@@ -1639,7 +1639,7 @@ dependencies = [
 [[package]]
 name = "xsynth-realtime"
 version = "0.1.0"
-source = "git+https://github.com/arduano/xsynth.git?rev=3385cd0#3385cd0d4dcd56cbd3c9f77743258a0e72993fb7"
+source = "git+https://github.com/arduano/xsynth.git?tag=0.1.0#2f805fa736f0dc3edc8e7694da568413687ed9b5"
 dependencies = [
  "atomic_refcell",
  "bytemuck",
@@ -1657,7 +1657,7 @@ dependencies = [
 [[package]]
 name = "xsynth-soundfonts"
 version = "0.1.0"
-source = "git+https://github.com/arduano/xsynth.git?rev=3385cd0#3385cd0d4dcd56cbd3c9f77743258a0e72993fb7"
+source = "git+https://github.com/arduano/xsynth.git?tag=0.1.0#2f805fa736f0dc3edc8e7694da568413687ed9b5"
 dependencies = [
  "encoding_rs",
  "encoding_rs_io",
