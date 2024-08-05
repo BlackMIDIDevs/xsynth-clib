@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use xsynth_core::soundfont::{Interpolator, SampleSoundfont, SoundfontBase, SoundfontInitOptions};
+use xsynth_core::soundfont::{Interpolator, SampleSoundfont, SoundfontInitOptions};
 
 use crate::{
     consts::*, convert_streamparams_to_rust, XSynth_GenDefault_StreamParams, XSynth_Soundfont,
@@ -70,13 +70,13 @@ pub extern "C" fn XSynth_GenDefault_SoundfontOptions() -> XSynth_SoundfontOption
 ///         (XSynth_SoundfontOptions struct)
 ///
 /// --Returns--
-/// This function returns the pointer (handle) of the loaded soundfont,
-/// which can be used to send it to a channel group or realtime synth.
+/// This function returns the handle of the loaded soundfont, which can be used
+/// to send it to a channel group or realtime synth.
 #[no_mangle]
 pub extern "C" fn XSynth_Soundfont_LoadNew(
     path: *const c_char,
     options: XSynth_SoundfontOptions,
-) -> *mut XSynth_Soundfont {
+) -> XSynth_Soundfont {
     unsafe {
         let path = PathBuf::from(
             CStr::from_ptr(path)
@@ -99,10 +99,8 @@ pub extern "C" fn XSynth_Soundfont_LoadNew(
 
         let new = SampleSoundfont::new(path.clone(), stream_params, sfinit)
             .unwrap_or_else(|_| panic!("Error loading soundfont: {:?}", path));
-        let new: Arc<dyn SoundfontBase> = Arc::new(new);
-        let new = Box::new(new);
 
-        Box::into_raw(new) as *mut XSynth_Soundfont
+        XSynth_Soundfont::from(Arc::new(new))
     }
 }
 
@@ -120,11 +118,8 @@ pub extern "C" fn XSynth_Soundfont_LoadNew(
 /// being used.
 ///
 /// --Parameters--
-/// - handle: The pointer of the soundfont
+/// - handle: The handle of the soundfont
 #[no_mangle]
-pub extern "C" fn XSynth_Soundfont_Remove(handle: *mut XSynth_Soundfont) {
-    unsafe {
-        let handle = handle as *mut Arc<SampleSoundfont>;
-        let _ = Box::from_raw(handle);
-    }
+pub extern "C" fn XSynth_Soundfont_Remove(handle: XSynth_Soundfont) {
+    handle.drop();
 }

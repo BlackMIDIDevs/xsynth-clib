@@ -1,10 +1,9 @@
 #![allow(clippy::missing_safety_doc)]
 #![allow(static_mut_refs)]
 
-use std::ffi::c_void;
 use xsynth_core::{
     channel::{ChannelConfigEvent, ChannelInitOptions},
-    channel_group::{ChannelGroup, ChannelGroupConfig},
+    channel_group::ChannelGroupConfig,
     AudioPipe,
 };
 
@@ -16,17 +15,8 @@ pub use consts::*;
 pub use utils::*;
 use xsynth_realtime::SynthEvent;
 
-/// Helper type definition for ChannelGroup pointers
-#[allow(non_camel_case_types)]
-pub type XSynth_ChannelGroup = c_void;
-
-/// Helper type definition for SampleSoundfont pointers
-#[allow(non_camel_case_types)]
-pub type XSynth_Soundfont = c_void;
-
-/// Helper type definition for RealtimeSynth pointers
-#[allow(non_camel_case_types)]
-pub type XSynth_Realtime = c_void;
+mod handles;
+pub use handles::*;
 
 /// Returns the version of XSynth
 ///
@@ -107,13 +97,11 @@ pub extern "C" fn XSynth_GenDefault_GroupOptions() -> XSynth_GroupOptions {
 ///         can be generated using the XSynth_GenDefault_GroupOptions function.
 ///
 /// --Returns--
-/// This function will return the pointer (handle) of the created channel group.
-/// This handle will be necessary to use other XSynth_ChannelGroup_* functions, as
-/// they are specific to each group.
+/// This function will return the handle of the created channel group. This will be
+/// necessary to use other XSynth_ChannelGroup_* functions, as they are specific to
+/// each group.
 #[no_mangle]
-pub extern "C" fn XSynth_ChannelGroup_Create(
-    options: XSynth_GroupOptions,
-) -> *mut XSynth_ChannelGroup {
+pub extern "C" fn XSynth_ChannelGroup_Create(options: XSynth_GroupOptions) -> XSynth_ChannelGroup {
     unsafe {
         let channel_init_options = ChannelInitOptions {
             fade_out_killing: options.fade_out_killing,
@@ -132,32 +120,26 @@ pub extern "C" fn XSynth_ChannelGroup_Create(
         };
 
         let new = ChannelGroup::new(config);
-        let new = Box::new(new);
-
-        Box::into_raw(new) as *mut XSynth_ChannelGroup
+        XSynth_ChannelGroup::from(new)
     }
 }
 
 /// Returns the active voice count of the desired channel group.
 ///
 /// --Parameters--
-/// - handle: The pointer of the channel group instance
+/// - handle: The handle of the channel group instance
 ///
 /// --Returns--
 /// A 64bit integer of the voice count
 #[no_mangle]
-pub extern "C" fn XSynth_ChannelGroup_VoiceCount(handle: *mut XSynth_ChannelGroup) -> u64 {
-    unsafe {
-        let group = (handle as *mut ChannelGroup).as_ref().unwrap();
-
-        group.voice_count()
-    }
+pub extern "C" fn XSynth_ChannelGroup_VoiceCount(handle: XSynth_ChannelGroup) -> u64 {
+    handle.as_ref().voice_count()
 }
 
 /// Sends a MIDI event to the desired channel group.
 ///
 /// --Parameters--
-/// - handle: The pointer of the channel group instance
+/// - handle: The handle of the channel group instance
 /// - channel: The number of the MIDI channel to send the event to (MIDI channel 1 is 0)
 /// - event: The type of MIDI event sent (see below for available options)
 /// - params: Parameters for the event
@@ -182,16 +164,13 @@ pub extern "C" fn XSynth_ChannelGroup_VoiceCount(handle: *mut XSynth_ChannelGrou
 ///         params: coarse tune value in semitones (0-128, 64=normal/middle)
 #[no_mangle]
 pub extern "C" fn XSynth_ChannelGroup_SendEvent(
-    handle: *mut XSynth_ChannelGroup,
+    handle: XSynth_ChannelGroup,
     channel: u32,
     event: u16,
     params: u16,
 ) {
-    unsafe {
-        let ev = convert_event(channel, event, params);
-        let group = (handle as *mut ChannelGroup).as_mut().unwrap();
-        group.send_event(ev);
-    }
+    let ev = convert_event(channel, event, params);
+    handle.as_mut().send_event(ev);
 }
 
 /// Reads audio samples from the desired channel group. The amount of samples
@@ -202,14 +181,14 @@ pub extern "C" fn XSynth_ChannelGroup_SendEvent(
 /// will be released. If we don't, then the note will keep playing.
 ///
 /// --Parameters--
-/// - handle: The pointer of the channel group instance
+/// - handle: The handle of the channel group instance
 /// - buffer: Pointer to a mutable buffer to receive the audio samples. Each
 ///         item of the buffer should correspond to an audio sample of type
 ///         32bit float.
 /// - length: Length of the above buffer, or number of samples to read
 #[no_mangle]
 pub unsafe extern "C" fn XSynth_ChannelGroup_ReadSamples(
-    handle: *mut XSynth_ChannelGroup,
+    handle: XSynth_ChannelGroup,
     buffer: *mut f32,
     length: u64,
 ) {
@@ -219,8 +198,7 @@ pub unsafe extern "C" fn XSynth_ChannelGroup_ReadSamples(
         }
 
         let slc = std::slice::from_raw_parts_mut(buffer, length as usize);
-        let group = (handle as *mut ChannelGroup).as_mut().unwrap();
-        group.read_samples(slc);
+        handle.as_mut().read_samples(slc);
     }
 }
 
@@ -229,59 +207,49 @@ pub unsafe extern "C" fn XSynth_ChannelGroup_ReadSamples(
 /// which is meant to be used in that channel group.
 ///
 /// --Parameters--
-/// - handle: The pointer of the channel group instance
+/// - handle: The handle of the channel group instance
 ///
 /// --Returns--
 /// This function returns an XSynth_StreamParams struct.
 #[no_mangle]
 pub extern "C" fn XSynth_ChannelGroup_GetStreamParams(
-    handle: *mut XSynth_ChannelGroup,
+    handle: XSynth_ChannelGroup,
 ) -> XSynth_StreamParams {
-    unsafe {
-        let group = (handle as *mut ChannelGroup).as_ref().unwrap();
-        let sp = group.stream_params();
-
-        convert_streamparams_to_c(sp)
-    }
+    convert_streamparams_to_c(handle.as_ref().stream_params())
 }
 
 /// Sets the given layer limit for the desired channel group. One layer
 /// corresponds to one voice per key per channel.
 ///
 /// --Parameters--
-/// - handle: The pointer of the channel group instance
+/// - handle: The handle of the channel group instance
 /// - layers: The layer limit (0 = no limit, 1-MAX = limit)
 ///         Where MAX is the maximum value of an unsigned 64bit integer
 #[no_mangle]
-pub extern "C" fn XSynth_ChannelGroup_SetLayerCount(handle: *mut XSynth_ChannelGroup, layers: u64) {
+pub extern "C" fn XSynth_ChannelGroup_SetLayerCount(handle: XSynth_ChannelGroup, layers: u64) {
     let layercount = convert_layer_count(layers);
-
-    unsafe {
-        let group = (handle as *mut ChannelGroup).as_mut().unwrap();
-        group.send_event(SynthEvent::ChannelConfig(
-            ChannelConfigEvent::SetLayerCount(layercount),
-        ));
-    }
+    handle.as_mut().send_event(SynthEvent::ChannelConfig(
+        ChannelConfigEvent::SetLayerCount(layercount),
+    ));
 }
 
 /// Sets a list of soundfonts to be used in the desired channel group. To load
 /// a new soundfont, see the XSynth_Soundfont_LoadNew function.
 ///
 /// --Parameters--
-/// - handle: The pointer of the channel group instance
+/// - handle: The handle of the channel group instance
 /// - sf_ids: Pointer to an array of soundfont handles
 /// - count: The length of the above array
 #[no_mangle]
 pub unsafe extern "C" fn XSynth_ChannelGroup_SetSoundfonts(
-    handle: *mut XSynth_ChannelGroup,
-    sf_ids: *const *mut XSynth_Soundfont,
+    handle: XSynth_ChannelGroup,
+    sf_ids: *const XSynth_Soundfont,
     count: u64,
 ) {
     unsafe {
         let ids = std::slice::from_raw_parts(sf_ids, count as usize);
         let sfvec = sfids_to_vec(ids);
-        let group = (handle as *mut ChannelGroup).as_mut().unwrap();
-        group.send_event(SynthEvent::ChannelConfig(
+        handle.as_mut().send_event(SynthEvent::ChannelConfig(
             ChannelConfigEvent::SetSoundfonts(sfvec),
         ));
     }
@@ -290,25 +258,19 @@ pub unsafe extern "C" fn XSynth_ChannelGroup_SetSoundfonts(
 /// Removes all the soundfonts used in the desired channel group.
 ///
 /// --Parameters--
-/// - handle: The pointer of the channel group instance
+/// - handle: The handle of the channel group instance
 #[no_mangle]
-pub extern "C" fn XSynth_ChannelGroup_ClearSoundfonts(handle: *mut XSynth_ChannelGroup) {
-    unsafe {
-        let group = (handle as *mut ChannelGroup).as_mut().unwrap();
-        group.send_event(SynthEvent::ChannelConfig(
-            ChannelConfigEvent::SetSoundfonts(Vec::new()),
-        ));
-    }
+pub extern "C" fn XSynth_ChannelGroup_ClearSoundfonts(handle: XSynth_ChannelGroup) {
+    handle.as_mut().send_event(SynthEvent::ChannelConfig(
+        ChannelConfigEvent::SetSoundfonts(Vec::new()),
+    ));
 }
 
 /// Drops the desired channel group.
 ///
 /// --Parameters--
-/// - handle: The pointer of the channel group instance
+/// - handle: The handle of the channel group instance
 #[no_mangle]
-pub extern "C" fn XSynth_ChannelGroup_Drop(handle: *mut XSynth_ChannelGroup) {
-    unsafe {
-        let handle = handle as *mut ChannelGroup;
-        let _ = Box::from_raw(handle);
-    }
+pub extern "C" fn XSynth_ChannelGroup_Drop(handle: XSynth_ChannelGroup) {
+    handle.drop();
 }

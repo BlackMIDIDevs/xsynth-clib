@@ -60,14 +60,8 @@ pub fn convert_event(channel: u32, event: u16, params: u16) -> SynthEvent {
     SynthEvent::Channel(channel, ev)
 }
 
-pub unsafe fn sfids_to_vec(handles: &[*mut XSynth_Soundfont]) -> Vec<Arc<dyn SoundfontBase>> {
-    handles
-        .iter()
-        .map(|handle| {
-            let sf = *handle as *mut Arc<dyn SoundfontBase>;
-            sf.as_ref().unwrap().clone()
-        })
-        .collect()
+pub unsafe fn sfids_to_vec(handles: &[XSynth_Soundfont]) -> Vec<Arc<dyn SoundfontBase>> {
+    handles.iter().map(|handle| handle.clone()).collect()
 }
 
 pub fn convert_layer_count(layers: u64) -> Option<usize> {
