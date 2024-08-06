@@ -3,7 +3,7 @@
 
 use xsynth_core::{
     channel::{ChannelConfigEvent, ChannelInitOptions},
-    channel_group::ChannelGroupConfig,
+    channel_group::{ChannelGroup, ChannelGroupConfig},
     AudioPipe,
 };
 

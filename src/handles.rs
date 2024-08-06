@@ -1,33 +1,39 @@
-use std::sync::Arc;
-pub use xsynth_core::channel_group::ChannelGroup;
-use xsynth_core::soundfont::{SampleSoundfont, SoundfontBase};
+use std::{ffi::c_void, sync::Arc};
+use xsynth_core::{
+    channel_group::ChannelGroup,
+    soundfont::{SampleSoundfont, SoundfontBase},
+};
 pub use xsynth_realtime::RealtimeSynth;
 
 /// Handle of an internal ChannelGroup instance in XSynth.
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct XSynth_ChannelGroup {
-    pub group: *mut ChannelGroup,
+    pub group: *mut c_void,
 }
 
 impl XSynth_ChannelGroup {
     pub(crate) fn from(group: ChannelGroup) -> Self {
+        let group = Box::into_raw(Box::new(group));
         Self {
-            group: Box::into_raw(Box::new(group)),
+            group: group as *mut c_void,
         }
     }
 
     pub(crate) fn drop(self) {
-        unsafe { drop(Box::from_raw(self.group)) }
+        let group = self.group as *mut ChannelGroup;
+        unsafe { drop(Box::from_raw(group)) }
     }
 
     pub(crate) fn as_ref(&self) -> &ChannelGroup {
-        unsafe { &*self.group }
+        let group = self.group as *mut ChannelGroup;
+        unsafe { &*group }
     }
 
     #[allow(clippy::mut_from_ref)]
     pub(crate) fn as_mut(&self) -> &mut ChannelGroup {
-        unsafe { &mut *self.group }
+        let group = self.group as *mut ChannelGroup;
+        unsafe { &mut *group }
     }
 }
 
@@ -35,23 +41,26 @@ impl XSynth_ChannelGroup {
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct XSynth_Soundfont {
-    pub soundfont: *mut Arc<SampleSoundfont>,
+    pub soundfont: *mut c_void,
 }
 
 impl XSynth_Soundfont {
     pub(crate) fn from(sf: Arc<SampleSoundfont>) -> Self {
+        let sf = Box::into_raw(Box::new(sf));
         Self {
-            soundfont: Box::into_raw(Box::new(sf)),
+            soundfont: sf as *mut c_void,
         }
     }
 
     pub(crate) fn drop(self) {
-        unsafe { drop(Box::from_raw(self.soundfont)) }
+        let soundfont = self.soundfont as *mut Arc<SampleSoundfont>;
+        unsafe { drop(Box::from_raw(soundfont)) }
     }
 
     pub(crate) fn clone(&self) -> Arc<dyn SoundfontBase> {
         unsafe {
-            let sf = &*self.soundfont;
+            let sf = self.soundfont as *mut Arc<SampleSoundfont>;
+            let sf = &*sf;
             sf.clone()
         }
     }
@@ -61,26 +70,30 @@ impl XSynth_Soundfont {
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct XSynth_RealtimeSynth {
-    pub synth: *mut RealtimeSynth,
+    pub synth: *mut c_void,
 }
 
 impl XSynth_RealtimeSynth {
     pub(crate) fn from(synth: RealtimeSynth) -> Self {
+        let synth = Box::into_raw(Box::new(synth));
         Self {
-            synth: Box::into_raw(Box::new(synth)),
+            synth: synth as *mut c_void,
         }
     }
 
     pub(crate) fn drop(self) {
-        unsafe { drop(Box::from_raw(self.synth)) }
+        let synth = self.synth as *mut RealtimeSynth;
+        unsafe { drop(Box::from_raw(synth)) }
     }
 
     pub(crate) fn as_ref(&self) -> &RealtimeSynth {
-        unsafe { &*self.synth }
+        let synth = self.synth as *mut RealtimeSynth;
+        unsafe { &*synth }
     }
 
     #[allow(clippy::mut_from_ref)]
     pub(crate) fn as_mut(&self) -> &mut RealtimeSynth {
-        unsafe { &mut *self.synth }
+        let synth = self.synth as *mut RealtimeSynth;
+        unsafe { &mut *synth }
     }
 }
