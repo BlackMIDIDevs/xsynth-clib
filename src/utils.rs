@@ -1,4 +1,4 @@
-use crate::{consts::*, XSynth_StreamParams, SOUNDFONTS};
+use crate::{consts::*, XSynth_Soundfont, XSynth_StreamParams};
 use std::sync::Arc;
 use xsynth_core::{
     channel::{ChannelAudioEvent, ControlEvent},
@@ -47,30 +47,21 @@ pub fn convert_event(channel: u32, event: u16, params: u16) -> SynthEvent {
         }
         MIDI_EVENT_FINETUNE => {
             let val = (params as f32).clamp(0.0, 8192.0);
-            let val = (val as f32 - 4096.0) / 4096.0 * 100.0;
+            let val = (val - 4096.0) / 4096.0 * 100.0;
             ChannelAudioEvent::Control(ControlEvent::FineTune(val))
         }
         MIDI_EVENT_COARSETUNE => {
             let val = (params as f32).clamp(0.0, 128.0);
             ChannelAudioEvent::Control(ControlEvent::CoarseTune(val - 64.0))
         }
-        _ => panic!("Unexpected MIDI event."),
+        _ => panic!("Unexpected MIDI event"),
     };
 
     SynthEvent::Channel(channel, ev)
 }
 
-pub unsafe fn sfids_to_vec(ids: &[u64]) -> Vec<Arc<dyn SoundfontBase>> {
-    ids.iter()
-        .map(|id| {
-            let sf = &SOUNDFONTS
-                .iter()
-                .find(|sf| sf.id == *id)
-                .unwrap_or_else(|| panic!("Soundfont does not exist."))
-                .soundfont;
-            sf.clone()
-        })
-        .collect()
+pub unsafe fn sfids_to_vec(handles: &[XSynth_Soundfont]) -> Vec<Arc<dyn SoundfontBase>> {
+    handles.iter().map(|handle| handle.clone()).collect()
 }
 
 pub fn convert_layer_count(layers: u64) -> Option<usize> {
