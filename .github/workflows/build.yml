@@ -40,6 +40,12 @@ jobs:
           name: "libxsynth-linux-${{ matrix.target.arch }}.so"
           path: "target/${{ matrix.target.name }}/release/libxsynth.so"
 
+      - name: Upload header
+        uses: actions/upload-artifact@v3
+        with:
+          name: "xsynth.h"
+          path: "xsynth.h"
+
   build-macos:
     runs-on: macos-latest
     strategy:
