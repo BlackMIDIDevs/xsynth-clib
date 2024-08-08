@@ -1,22 +1,21 @@
 # xsynth-clib
-A dynamic C/C++ library for XSynth allowing its use in languages outside of Rust.
+C/C++ bindings for [XSynth](https://github.com/BlackMIDIDevs/xsynth) allowing its use in languages outside of Rust.
 
-## How to use
-To use this you need to build the library by running `cargo build --release`. A header file `xsynth.h` will be generated in the root directory which can be used in your code.
+## How To Use
+The latest release of this library for Linux, macOS and Windows, as well as the header file can be found in the [releases](https://github.com/BlackMIDIDevs/xsynth-clib/releases) section.
 
-Then you will find the XSynth dynamic library file under `./target/release` (should be `libxsynth.so` for Linux and `xsynth.dll` for Windows) and feed it to your compiler.
+If you wish to use it in another platform (eg. Android, iOS, BSD) or architecture from the ones provided, you have to build the library yourself.
+See instructions for building below.
 
-## Documentation?
-All necessary documentation can be found on the generated `xsynth.h` header file.
+## Building
+First, clone the version of the library you want to use by running `git clone --branch <version> https://github.com/BlackMIDIDevs/xsynth-clib` or the latest version by simply running `git clone https://github.com/BlackMIDIDevs/xsynth-clib`.
 
-## What is implemented?
-Implemented:
-- Channel Group
-- Sample Soundfont
-- Realtime module
+Then considering [Rust](https://rustup.rs/) is installed on your system, you build the library using `cargo build --release`. The header file (`xsynth.h`) will be generated in the root directory of the project, while the library itself will be under the `target/release` directory.
 
-Not yet implemented:
-- Buffered renderer
+For cross-compilation, please visit the [official Rust documentation](https://rust-lang.github.io/rustup/cross-compilation.html).
+
+## Documentation
+All necessary documentation can be found on the `xsynth.h` header file.
 
 ## License
-The XSynth Rust library as well as this C library are both licensed under the LGPL 3.0
+The XSynth Rust library as well as this C library are both licensed under the MIT license.
