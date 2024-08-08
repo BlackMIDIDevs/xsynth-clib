@@ -1,5 +1,5 @@
 /target
 xsynth.h
-test.cpp
 a.out
-test
+test*
+.vscode
